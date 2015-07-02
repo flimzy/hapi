@@ -66,17 +66,13 @@ func (h *HypermediaAPI) Register(method, path, ctype string, handle Handle) {
     
     if !registered {
         wrapper := func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-            types := make([]string,len(h.typeHandlers[key]))
-            i := 0
-            for k,_ := range h.typeHandlers[key] {
-                types[i] = k
-                i++
-            }
-            negotiatedType := Negotiate(r.Header.Get("Accept"),types)
+            negotiatedType, typeHandler := TypeNegotiator(r.Header.Get("Accept"), h.typeHandlers[key])
+log.Printf("Accept: %s\n", r.Header.Get("Accept"))
             if len(negotiatedType) == 0 {
+                log.Printf("We can't serve the requested type(s): %s\n", r.Header.Get("Accept"))
                 // Fall back to unsupported type
             }
-            w.Header.Set("Content-Type", negotiatedType)
+//            w.Header.Set("Content-Type", negotiatedType)
             context := &Context{
                 w,
                 r,
@@ -84,14 +80,9 @@ func (h *HypermediaAPI) Register(method, path, ctype string, handle Handle) {
                 negotiatedType,
                 make(map[string]interface{}),
             }
-            for _,negType := range []string{negotiatedType, negotiatedType[0:strings.Index(negotiatedType,"/")]+"/*", "*"} {
-                log.Printf(" Trying type %s\n", negType)
-                if typeHandler,ok := h.typeHandlers[key][negType]; ok {
-                    typeHandler( context )
-                    fmt.Fprintf(w, "%v", context)
-                    return
-                }
-            }
+            typeHandler( context )
+            fmt.Fprintf(w, "%v", context)
+            return
         }
         h.Router.Handle(method, path, wrapper)
         h.typeHandlers[key] = make(map[string]Handle)
@@ -100,6 +91,31 @@ func (h *HypermediaAPI) Register(method, path, ctype string, handle Handle) {
         log.Printf("Registering for %s\n", t)
         h.typeHandlers[key][t] = handle
     }
+}
+
+func TypeNegotiator(acceptHeader string, typeHandlers map[string]Handle) (negotiatedType string, typeHandler Handle) {
+    availableTypes := make([]string,len(typeHandlers))
+    i := 0
+    for k,_ := range typeHandlers {
+        availableTypes[i] = k
+        i++
+    }
+    if len(acceptHeader) == 0 {
+        acceptHeader = "*/*"
+    }
+    negotiatedType = Negotiate(acceptHeader,availableTypes)
+    if len(negotiatedType) == 0 {
+        // This means we can't serve the requested type
+        return
+    }
+    for _,negType := range []string{ negotiatedType, negotiatedType[0:strings.Index(negotiatedType,"/")]+"/*", "*/*" } {
+        if handler,ok := typeHandlers[negType]; ok {
+            typeHandler = handler
+            return
+        }
+    }
+    typeHandler = nil
+    return
 }
 
 // Borrowed from goautoneg, and adapted
