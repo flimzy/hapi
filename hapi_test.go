@@ -3,7 +3,7 @@ package hapi
 import (
     "testing"
     "net/http"
-//     "net/http/httptest"
+//    "net/http/httptest"
 )
 
 type mockResponseWriter struct{}
@@ -30,84 +30,74 @@ func TestNew(t *testing.T) {
     }
 }
 
-// Test a handler for 'text/html' only
-func TestTypeNegotiator(t *testing.T) {
-    handler := func(c *Context) {}
-    handlersMap := make(map[string]Handle)
-    handlersMap["text/html"] = handler
-
-    // Accept: matches exactly
-    negType,negHandler := TypeNegotiator("text/html",handlersMap)
-    if negType != "text/html" {
-        t.Fatalf("TypeNegotiator returned '%s', not '%s'\n", negType, "text/html")
-    }
-    if negHandler == nil {
-        t.Fatal("No handler returned")
-    }
-
-    // Accept: Doesn't match
-    negType,negHandler = TypeNegotiator("text/plain",handlersMap)
-    if negType != "" {
-        t.Fatalf("TypeNegotiator returned '%s', not '%s'\n", negType, "")
-    }
-    if negHandler != nil {
-        t.Fatal("Handler returned inappropriately")
-    }
-
-    // Accept: doesn't exist
-    negType,negHandler = TypeNegotiator("",handlersMap)
-    if negType != "text/html" {
-        t.Fatalf("TypeNegotiator returned '%s', not '%s'\n", negType, "text/html")
-    }
-    if negHandler == nil {
-        t.Fatal("No handler returned")
-    }
-
-    // Accept: */*
-    negType,negHandler = TypeNegotiator("*/*",handlersMap)
-    if negType != "text/html" {
-        t.Fatalf("TypeNegotiator returned '%s', not '%s'\n", negType, "text/html")
-    }
-    if negHandler == nil {
-        t.Fatal("No handler returned")
-    }
-
-    // Accept: text/*
-    negType,negHandler = TypeNegotiator("*/*",handlersMap)
-    if negType != "text/html" {
-        t.Fatalf("TypeNegotiator returned '%s', not '%s'\n", negType, "text/html")
-    }
-    if negHandler == nil {
-        t.Fatal("No handler returned")
-    }
-
-    // Accept: foo/*
-    negType,negHandler = TypeNegotiator("text/plain",handlersMap)
-    if negType != "" {
-        t.Fatalf("TypeNegotiator returned '%s', not '%s'\n", negType, "")
-    }
-    if negHandler != nil {
-        t.Fatal("Handler returned inappropriately")
-    }
-
-
+type typeTest struct{
+    Accept      string
+    Handlers    map[string]Handle   
+    Result      string
+    HandlerID   string
 }
 
-// func TestGET(t *testing.T) {
-//     router := New()
-//     routed := false
-//     router.GET("/foo","*/*",func(c *Context) {
-//         routed = true
-//         if c.NegotiatedType != "text/html" {
-//             t.Fatal("Expected a negotiated type of 'text/html'")
-//         }
-//     })
-//     
-//     w := new(mockResponseWriter)
-//     r, _ := http.NewRequest("GET", "/foo", nil)
-//     router.ServeHTTP(w,r)
-//     
-//     if !routed {
-//         t.Fatal("Request was not routed")
-//     }
-// }
+func NewTest(accept,result,id string) *typeTest {
+    return &typeTest{
+        accept,
+        make(map[string]Handle),
+        result,
+        id,
+    }
+}
+
+func (testData *typeTest) AddHandler(ctype,id string) {
+    testData.Handlers[ctype] = func(c *Context) { c.Stash["id"] = id }
+}
+
+func (testData *typeTest) DoTests(t *testing.T) {
+    negType,negHandler := TypeNegotiator(testData.Accept,testData.Handlers)
+    if negType != testData.Result {
+        t.Fatalf("TypeNegotiator returned '%s', expected '%s'\n", negType, testData.Result)
+    }
+    context := &Context{}
+    context.Stash = make(map[string]interface{})
+    if negHandler != nil {
+        negHandler( context )
+    }
+    var id string
+    if context.Stash["id"] != nil {
+        id = context.Stash["id"].(string)
+    }
+    if id != testData.HandlerID {
+        t.Fatalf("Handler identified itself as '%s', expected '%x'\n", id, testData.HandlerID)
+    }
+}
+
+// Test a handler for 'text/html' only
+func TestTypeNegotiator(t *testing.T) {
+    // Accept: matches exactly
+    testData := NewTest("text/html","text/html","1")
+    testData.AddHandler("text/html","1")
+    testData.DoTests(t)
+
+    // Accept: Doesn't match
+    testData = NewTest("text/plain","","")
+    testData.AddHandler("text/html","1")
+    testData.DoTests(t)
+
+    // Accept: doesn't exist
+    testData = NewTest("","text/html","1")
+    testData.AddHandler("text/html","1")
+    testData.DoTests(t)
+    
+    // Accept: */*
+    testData = NewTest("*/*","text/html","1")
+    testData.AddHandler("text/html","1")
+    testData.DoTests(t)
+
+    // Accept: text/*
+    testData = NewTest("text/*","text/html","1")
+    testData.AddHandler("text/html","1")
+    testData.DoTests(t)
+
+    // Accept: foo/*
+    testData = NewTest("text/plain","","")
+    testData.AddHandler("text/html","1")
+    testData.DoTests(t)
+}
