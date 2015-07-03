@@ -1,6 +1,6 @@
 # What is HAPI?
 
-HAPI, short for **Hypermedia API** is an router and minimalistic framework for creating Hypermedia APIs (aka REST) for the Go language.
+HAPI, short for **Hypermedia API**, is a router and minimalistic framework for creating Hypermedia APIs (aka REST) for the Go language.
 It is very much a work in progress, and in the very early stages of development. Therefore I do not recommend that you use it in anything
 like a production environment.  If you are interested in partcipating in the development, your contribution is appreciated.
 
@@ -44,3 +44,7 @@ By handling this in the router, it also makes it easier to provide a 406 error i
 We have similar problems if we need to consume requests with bodies of different media types. Perhaps you want to accept input from your clients as either JSON+Collection or as XML. You have to do all that bookkeeping and piping yourself.
 
 Thus the primary goal of HAPI is to simplify the media type dimension of Hypermedia API routing.
+
+## Compatibility
+
+HAPI is a wrapper around [httprouter](https://github.com/julienschmidt/httprouter#web-frameworks-based-on-httprouter), and like httprouter, it provides a couple of functions to make it easy to use http.Handler, http.HandlerFunc, and even httprouter.Handle: hapi.Handler(), hapi.HandlerFunc(), and hapi.Handle() respectively.

@@ -54,6 +54,25 @@ func (h *HypermediaAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     h.Router.ServeHTTP(w,r)
 }
 
+// Handle() is an adaptor which allows the usage of an httprouter.Handle as a request handle
+func (h *HypermediaAPI) Handle(method, path, ctype string, handle httprouter.Handle) {
+    h.Register(method, path, ctype, func(c *Context) {
+        handle(c.Writer,c.Request,c.Params)
+    })
+}
+
+// Handler() is an adapter which allows the usage of an http.Handler as a request handle
+func (h *HypermediaAPI) Handler(method, path, ctype string, handler http.Handler) {
+    h.Register(method, path, ctype, func(c *Context) {
+        handler.ServeHTTP(c.Writer, c.Request)
+    })
+}
+
+// HandlerFunc() is an adaptor which allows the usage of an http.HandlerFunc as a request handle
+func (h *HypermediaAPI) HandlerFunc(method, path, ctype string, handlerFunc http.HandlerFunc) {
+    h.Handler(method, path, ctype, handlerFunc)
+}
+
 // Register() registers a handler method to handle a specific Method/path/content-type combination
 // Method and path ought to be self-explanatory.
 // The content type argument should be a space-separated list of valid content types. For the moment
