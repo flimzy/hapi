@@ -54,17 +54,21 @@ func (h *HypermediaAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     h.Router.ServeHTTP(w,r)
 }
 
+// Register() registers a handler method to handle a specific Method/path/content-type combination
+// Method and path ought to be self-explanatory.
+// The content type argument should be a space-separated list of valid content types. For the moment
+// all parameters are ignored, but I hope to implement support for charset eventually
+// The media type may be specified as '*/*' to act as a catch-all. No other wildcards (e.g. 'text/*') are permitted
 func (h *HypermediaAPI) Register(method, path, ctype string, handle Handle) {
     key := method + " " + path
     ctypes := strings.Split(ctype," ")
-    typeHandlers, registered := h.typeHandlers[key]
-    for _,t := range ctypes {
-        if _, ok := typeHandlers[t]; ok {
-            panic(fmt.Sprintf("a handle is already registered for method %s, path '%s', type %s",method,path,ctype))
+    if typeHandlers, registered := h.typeHandlers[key]; registered {
+        for _,t := range ctypes {
+            if _, ok := typeHandlers[t]; ok {
+                panic(fmt.Sprintf("a handle is already registered for method %s, path '%s', type %s",method,path,ctype))
+            }
         }
-    }
-    
-    if !registered {
+    } else {
         wrapper := func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
             negotiatedType, typeHandler := TypeNegotiator(r.Header.Get("Accept"), h.typeHandlers[key])
 log.Printf("Accept: %s\n", r.Header.Get("Accept"))
