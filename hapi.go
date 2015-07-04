@@ -77,7 +77,11 @@ func (h *HypermediaAPI) HandlerFunc(method, path, ctype string, handlerFunc http
 // Method and path ought to be self-explanatory.
 // The content type argument should be a space-separated list of valid content types. For the moment
 // all parameters are ignored, but I hope to implement support for charset eventually
-// The media type may be specified as '*/*' to act as a catch-all. No other wildcards (e.g. 'text/*') are permitted
+// Wildcards may also be specified (e.g. "*/*" or "text/*"). Wildcards must be registered first,
+// because a specific media type is also registered to match wildcards, to simplify routing
+// when only a single media type is specified.  E.g. registering "text/html" will also register
+// the same handler for "text/*" and "*/*", so if you want either of these wildcards to be handled
+// by some other handler, they must be registered before "text/html"
 func (h *HypermediaAPI) Register(method, path, ctype string, handle Handle) {
     key := method + " " + path
     ctypes := strings.Split(ctype," ")
@@ -113,6 +117,15 @@ log.Printf("Accept: %s\n", r.Header.Get("Accept"))
     for _,t := range ctypes {
         log.Printf("Registering for %s\n", t)
         h.typeHandlers[key][t] = handle
+        // If "type/*" isn't yet registered, register it
+        wildcardType := t[0:strings.Index(t,"/")]+"/*"
+        if _,ok := h.typeHandlers[key][wildcardType]; !ok {
+            h.typeHandlers[key][wildcardType] = handle
+        }
+    }
+    // If "*/*" isn't yet registered, register it
+    if _,ok := h.typeHandlers[key]["*/*"]; !ok {
+        h.typeHandlers[key]["*/*"] = handle
     }
 }
 

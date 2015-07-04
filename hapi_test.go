@@ -65,11 +65,11 @@ func (testData *typeTest) DoTests(t *testing.T) {
         id = context.Stash["id"].(string)
     }
     if id != testData.HandlerID {
-        t.Fatalf("Handler identified itself as '%s', expected '%x'\n", id, testData.HandlerID)
+        t.Fatalf("Handler identified itself as '%s', expected '%s'\n", id, testData.HandlerID)
     }
 }
 
-// Test a handler for 'text/html' only
+// Tests 'text/html' handler
 func TestTypeNegotiator(t *testing.T) {
     // Accept: matches exactly
     testData := NewTest("text/html","text/html","1")
@@ -85,7 +85,7 @@ func TestTypeNegotiator(t *testing.T) {
     testData = NewTest("","text/html","1")
     testData.AddHandler("text/html","1")
     testData.DoTests(t)
-    
+
     // Accept: */*
     testData = NewTest("*/*","text/html","1")
     testData.AddHandler("text/html","1")
@@ -100,4 +100,57 @@ func TestTypeNegotiator(t *testing.T) {
     testData = NewTest("text/plain","","")
     testData.AddHandler("text/html","1")
     testData.DoTests(t)
+}
+
+// Tests for '*/*' handler
+func TestTypeNegotiator2(t *testing.T) {
+    // Accept: text/html
+    testData := NewTest("text/html","text/html","1")
+    testData.AddHandler("*/*","1")
+    testData.DoTests(t)
+
+    testData = NewTest("*/*","*/*","1")
+    testData.AddHandler("*/*","1")
+    testData.DoTests(t)
+
+    testData = NewTest("","*/*","1")
+    testData.AddHandler("*/*","1")
+    testData.DoTests(t)
+}
+
+// Tests for two routers 1: "text/html", 2: "*/*"
+func TestTypeNegotiator3(t *testing.T) {
+    testData := NewTest("text/html","text/html","1")
+    testData.AddHandler("text/html","1")
+    testData.AddHandler("*/*","2")
+    testData.DoTests(t)
+
+    testData = NewTest("text/html","text/html","2")
+    testData.AddHandler("text/plain","1")
+    testData.AddHandler("*/*","2")
+    testData.DoTests(t)
+
+    testData = NewTest("text/*","text/html","1")
+    testData.AddHandler("text/html","1")
+    testData.AddHandler("*/*","2")
+    testData.DoTests(t)
+}
+
+// Two routers: 1: text/html, 2: text/plain
+func TestTypeNegotiator4(t *testing.T) {
+    testData := NewTest("text/html","text/html","1")
+    testData.AddHandler("text/html","1")
+    testData.AddHandler("text/plain","2")
+    testData.DoTests(t)
+
+    testData = NewTest("text/plain","text/plain","1")
+    testData.AddHandler("text/plain","1")
+    testData.AddHandler("text/html","2")
+    testData.DoTests(t)
+
+    testData = NewTest("text/*","text/html","1")
+    testData.AddHandler("text/*","1")
+    testData.AddHandler("text/plain","2")
+    testData.DoTests(t)
+
 }
