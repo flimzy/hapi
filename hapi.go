@@ -24,6 +24,7 @@ type Handle func(*Context)
 
 type HypermediaAPI struct {
     Router          *httprouter.Router
+    registeredTypes []string
     typeHandlers    map[string]map[string]Handle
 }
 
@@ -38,6 +39,7 @@ type Context struct {
 func New() *HypermediaAPI {
     return &HypermediaAPI{
         httprouter.New(),
+        make([]string,0,1),
         make(map[string]map[string]Handle),
     }
 }
@@ -75,13 +77,8 @@ func (h *HypermediaAPI) HandlerFunc(method, path, ctype string, handlerFunc http
 
 // Register() registers a handler method to handle a specific Method/path/content-type combination
 // Method and path ought to be self-explanatory.
-// The content type argument should be a space-separated list of valid content types. For the moment
-// all parameters are ignored, but I hope to implement support for charset eventually
-// Wildcards may also be specified (e.g. "*/*" or "text/*"). Wildcards must be registered first,
-// because a specific media type is also registered to match wildcards, to simplify routing
-// when only a single media type is specified.  E.g. registering "text/html" will also register
-// the same handler for "text/*" and "*/*", so if you want either of these wildcards to be handled
-// by some other handler, they must be registered before "text/html"
+// The content type argument should be a space-separated list of valid content types. Wildcards
+// are not permitted.
 func (h *HypermediaAPI) Register(method, path, ctype string, handle Handle) {
     key := method + " " + path
     ctypes := strings.Split(ctype," ")
@@ -93,8 +90,7 @@ func (h *HypermediaAPI) Register(method, path, ctype string, handle Handle) {
         }
     } else {
         wrapper := func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-            negotiatedType, typeHandler := TypeNegotiator(r.Header.Get("Accept"), h.typeHandlers[key])
-log.Printf("Accept: %s\n", r.Header.Get("Accept"))
+            negotiatedType, typeHandler := h.TypeAndHandler(method,path,r.Header.Get("Accept"))
             if len(negotiatedType) == 0 {
                 log.Printf("We can't serve the requested type(s): %s\n", r.Header.Get("Accept"))
                 // Fall back to unsupported type
@@ -114,75 +110,25 @@ log.Printf("Accept: %s\n", r.Header.Get("Accept"))
         h.Router.Handle(method, path, wrapper)
         h.typeHandlers[key] = make(map[string]Handle)
     }
+    h.registeredTypes = append(h.registeredTypes,ctypes...)
     for _,t := range ctypes {
-        log.Printf("Registering for %s\n", t)
-        h.typeHandlers[key][t] = handle
-        // If "type/*" isn't yet registered, register it
-        wildcardType := t[0:strings.Index(t,"/")]+"/*"
-        if _,ok := h.typeHandlers[key][wildcardType]; !ok {
-            h.typeHandlers[key][wildcardType] = handle
+        if strings.ContainsRune(t,'*') {
+            panic(fmt.Sprintf("'%s' is not a valid media type; wildcards are not permitted.",t))
         }
-    }
-    // If "*/*" isn't yet registered, register it
-    if _,ok := h.typeHandlers[key]["*/*"]; !ok {
-        h.typeHandlers[key]["*/*"] = handle
+        h.typeHandlers[key][t] = handle
     }
 }
 
-func TypeNegotiator(acceptHeader string, typeHandlers map[string]Handle) (negotiatedType string, typeHandler Handle) {
-    availableTypes := make([]string,len(typeHandlers))
-    i := 0
-    for k,_ := range typeHandlers {
-        availableTypes[i] = k
-        i++
-    }
-    if len(acceptHeader) == 0 {
-        acceptHeader = "*/*"
-    }
-    negotiatedType = Negotiate(acceptHeader,availableTypes)
+func (h *HypermediaAPI) TypeAndHandler(method, path, acceptHeader string) (negotiatedType string, typeHandler Handle) {
+    negotiatedType = goautoneg.Negotiate(acceptHeader,h.registeredTypes)
     if len(negotiatedType) == 0 {
         // This means we can't serve the requested type
         return
     }
-    for _,negType := range []string{ negotiatedType, negotiatedType[0:strings.Index(negotiatedType,"/")]+"/*", "*/*" } {
-        if handler,ok := typeHandlers[negType]; ok {
-            typeHandler = handler
-            return
-        }
+    if handler,ok := h.typeHandlers[method + " " + path][negotiatedType]; ok {
+        typeHandler = handler
+        return
     }
-    typeHandler = nil
-    return
-}
-
-// Borrowed from goautoneg, and adapted
-func Negotiate(header string, alternatives []string) (content_type string) {
-    asp := make([][]string, 0, len(alternatives))
-    for _, ctype := range alternatives {
-        asp = append(asp, strings.SplitN(ctype, "/", 2))
-    }
-    for _, clause := range goautoneg.ParseAccept(header) {
-        for i, ctsp := range asp {
-            if clause.Type == ctsp[0] && clause.SubType == ctsp[1] {
-                content_type = alternatives[i]
-                return
-            }
-            if clause.Type == ctsp[0] && clause.SubType == "*" {
-                content_type = alternatives[i]
-                return
-            }
-            if clause.Type == "*" && clause.SubType == "*" {
-                content_type = alternatives[i]
-                return
-            }
-            if clause.Type == ctsp[0] && ctsp[1] == "*" {
-                content_type = clause.Type + "/" + clause.SubType
-                return
-            }
-            if ctsp[0] == "*" && ctsp[1] == "*" {
-                content_type = clause.Type + "/" + clause.SubType
-                return
-            }
-        }
-    }
+//    typeHandler = nil
     return
 }
