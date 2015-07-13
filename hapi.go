@@ -12,7 +12,7 @@ package hapi
 
 import (
     "fmt"
-    "log"
+//     "log"
     "strings"
 
     "net/http"
@@ -20,12 +20,16 @@ import (
     "bitbucket.org/ww/goautoneg"            /* To parse Accept: headers */
 )
 
-type Handle func(*Context)
+type Handler func(*Context)
 
 type HypermediaAPI struct {
-    Router          *httprouter.Router
-    registeredTypes []string
-    typeHandlers    map[string]map[string]Handle
+    Router                  *httprouter.Router
+    registeredTypes         []string
+    typeHandlers            map[string]map[string]Handler
+    // Configurable hapi.Handler which is called when the requested media
+    // type (via Accept: header) cannot be served by a registered handler.
+    // If it is not set, http.Error with http.StatusUnsupportedMediaType is used.
+    UnsupportedMediaType    Handler
 }
 
 type Context struct {
@@ -40,15 +44,20 @@ func New() *HypermediaAPI {
     return &HypermediaAPI{
         httprouter.New(),
         make([]string,0,1),
-        make(map[string]map[string]Handle),
+        make(map[string]map[string]Handler),
+        defaultUnsupportedMediaType,
     }
 }
 
-func (h *HypermediaAPI) GETAll(path string, handle Handle) {
+func defaultUnsupportedMediaType (c *Context) {
+    http.Error(c.Writer,"415 Unsupported Media Type", http.StatusUnsupportedMediaType)
+}
+
+func (h *HypermediaAPI) GETAll(path string, handle Handler) {
     h.Register("GET",path,"*/*",handle)
 }
 
-func (h *HypermediaAPI) GET(path, ctype string, handle Handle) {
+func (h *HypermediaAPI) GET(path, ctype string, handle Handler) {
     h.Register("GET",path, ctype, handle)
 }
 
@@ -79,7 +88,7 @@ func (h *HypermediaAPI) HandlerFunc(method, path, ctype string, handlerFunc http
 // Method and path ought to be self-explanatory.
 // The content type argument should be a space-separated list of valid content types. Wildcards
 // are not permitted.
-func (h *HypermediaAPI) Register(method, path, ctype string, handle Handle) {
+func (h *HypermediaAPI) Register(method, path, ctype string, handle Handler) {
     key := method + " " + path
     ctypes := strings.Split(ctype," ")
     if typeHandlers, registered := h.typeHandlers[key]; registered {
@@ -92,8 +101,8 @@ func (h *HypermediaAPI) Register(method, path, ctype string, handle Handle) {
         wrapper := func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
             negotiatedType, typeHandler := h.TypeAndHandler(method,path,r.Header.Get("Accept"))
             if len(negotiatedType) == 0 {
-                log.Printf("We can't serve the requested type(s): %s\n", r.Header.Get("Accept"))
                 // Fall back to unsupported type
+                typeHandler = h.UnsupportedMediaType
             }
 //            w.Header.Set("Content-Type", negotiatedType)
             context := &Context{
@@ -108,7 +117,7 @@ func (h *HypermediaAPI) Register(method, path, ctype string, handle Handle) {
             return
         }
         h.Router.Handle(method, path, wrapper)
-        h.typeHandlers[key] = make(map[string]Handle)
+        h.typeHandlers[key] = make(map[string]Handler)
     }
     h.registeredTypes = append(h.registeredTypes,ctypes...)
     for _,t := range ctypes {
@@ -119,7 +128,7 @@ func (h *HypermediaAPI) Register(method, path, ctype string, handle Handle) {
     }
 }
 
-func (h *HypermediaAPI) TypeAndHandler(method, path, acceptHeader string) (negotiatedType string, typeHandler Handle) {
+func (h *HypermediaAPI) TypeAndHandler(method, path, acceptHeader string) (negotiatedType string, typeHandler Handler) {
     negotiatedType = goautoneg.Negotiate(acceptHeader,h.registeredTypes)
     if len(negotiatedType) == 0 {
         // This means we can't serve the requested type

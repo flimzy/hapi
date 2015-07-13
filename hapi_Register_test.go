@@ -5,27 +5,6 @@ import (
 //     "net/http"
 )
 
-type typeRegisterTest struct{
-    Name        string
-    Router      *HypermediaAPI
-    Accept      string
-    Handlers    map[string]Handle
-    Result      string
-    HandlerID   string
-}
-
-func NewRegisterTest(name,accept,result,id string) *typeRegisterTest {
-    router := New()
-    return &typeRegisterTest{
-        name,
-        router,
-        accept,
-        make(map[string]Handle),
-        result,
-        id,
-    }
-}
-
 func (h *HypermediaAPI) DoRegisterTest(name, requestedType, expectedType, expectedID string, t *testing.T) {
     negType,negHandler := h.TypeAndHandler("GET","/",requestedType)
     if negType != expectedType {
@@ -45,7 +24,7 @@ func (h *HypermediaAPI) DoRegisterTest(name, requestedType, expectedType, expect
     }
 }
 
-func TestRegister3(t *testing.T) {
+func TestRegister1(t *testing.T) {
     router := New()
     router.TestRegister("text/html","1")
     router.DoRegisterTest("text/html 1","text/html","text/html","1",t)
