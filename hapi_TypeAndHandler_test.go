@@ -1,7 +1,10 @@
 package hapi
 
 import (
+    "net/http"
     "testing"
+
+    "github.com/gorilla/context"
 )
 
 func (h *HypermediaAPI) DoTypeAndHandlerTests(name, accept, expectedType, expectedID string, t *testing.T) {
@@ -9,16 +12,16 @@ func (h *HypermediaAPI) DoTypeAndHandlerTests(name, accept, expectedType, expect
     if negType != expectedType {
         t.Fatalf("%s: TypeAndHandler returned '%s', expected '%s'\n", name, negType, expectedType)
     }
-    context := &Context{}
-    context.Stash = make(map[string]interface{})
+    w := new(mockResponseWriter)
+    r,_ := http.NewRequest("GET","/",nil)
     if negHandler != nil {
-        negHandler( context )
+        negHandler( w, r )
     }
-    var id string
-    if context.Stash["id"] != nil {
-        id = context.Stash["id"].(string)
-    }
-    if id != expectedID {
+    if id,ok := context.GetOk(r,"id"); ! ok {
+        if ( len(expectedID) > 0 ) {
+            t.Fatalf("%s: Error reading id after request\n", name)
+        }
+    } else if id != expectedID {
         t.Fatalf("%s: Handler identified itself as '%s', expected '%s'\n", name, id, expectedID)
     }
 }
@@ -33,6 +36,7 @@ func TestTypeNegotiator1(t *testing.T) {
     router.DoTypeAndHandlerTests("text/*",      "text/*",       "text/html",    "1",    t)
     router.DoTypeAndHandlerTests("*/*",         "*/*",          "text/html",    "1",    t)
     router.DoTypeAndHandlerTests("foo/*",       "foo/*",        "",             "",     t)
+    router.DoTypeAndHandlerTests("foo/*",       "",             "",             "",     t)
 }
 
 // Two routers: 1: text/html, 2: text/plain
