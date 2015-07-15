@@ -14,10 +14,15 @@ func TestRouting(t *testing.T) {
     router.UnsupportedMediaType = func (_ http.ResponseWriter, _ *http.Request) { handlerID = "unsupported" }
     w := new(mockResponseWriter)
     req,_ := http.NewRequest("GET","/",nil)
+    router.ServeHTTP(w,req)
+    if handlerID != "1" {
+        t.Fatal("Routing failed with no Accept: header")
+    }
+
     req.Header.Set("Accept","text/html")
     router.ServeHTTP(w,req)
     if handlerID != "1" {
-        t.Fatal("routing failed")
+        t.Fatal("Routing failed for explicit Accept: header")
     }
 
     req.Header.Set("Accept","text/plain")

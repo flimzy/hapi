@@ -36,6 +36,7 @@ func TestTypeNegotiator1(t *testing.T) {
     router.DoTypeAndHandlerTests("text/*",      "text/*",       "text/html",    "1",    t)
     router.DoTypeAndHandlerTests("*/*",         "*/*",          "text/html",    "1",    t)
     router.DoTypeAndHandlerTests("foo/*",       "foo/*",        "",             "",     t)
+    router.DoTypeAndHandlerTests("foo/*",       "",             "",             "",     t)
 }
 
 // Two routers: 1: text/html, 2: text/plain

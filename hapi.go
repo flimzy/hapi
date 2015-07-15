@@ -91,7 +91,11 @@ func (h *HypermediaAPI) Register(method, path, ctype string, handler http.Handle
         }
     } else {
         wrapper := func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-            negotiatedType, typeHandler := h.TypeAndHandler(method,path,r.Header.Get("Accept"))
+            accept := r.Header.Get("Accept")
+            if len(accept) == 0 {
+                accept = "*/*"
+            }
+            negotiatedType, typeHandler := h.TypeAndHandler(method,path,accept)
             if len(negotiatedType) == 0 {
                 // Fall back to unsupported type
                 typeHandler = h.UnsupportedMediaType
