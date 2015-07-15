@@ -5,8 +5,7 @@ import (
     "testing"
 
     "github.com/gorilla/context"
-
-//     "net/http"
+    "github.com/julienschmidt/httprouter"   /* HTTP router */
 )
 
 func (h *HypermediaAPI) DoRegisterTest(name, requestedType, expectedType, expectedID string, t *testing.T) {
@@ -36,4 +35,25 @@ func TestRegister1(t *testing.T) {
     router.DoRegisterTest("text/html 2","text/*","text/html","1",t)
     router.DoRegisterTest("text/html 3","*/*","text/html","1",t)
     router.DoRegisterTest("text/html 4","text/plain","","",t)
+}
+
+func TestHandle(t *testing.T) {
+    var negotiatedType string
+    var foo string
+    handler := func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+        negotiatedType = context.Get(r,"Content-Type").(string)
+        foo = p.ByName("foo")
+    }
+    
+    router := New()
+    router.Handle("GET","/:foo","text/html",handler)
+    w := new(mockResponseWriter)
+    r,_ := http.NewRequest("GET","/bar",nil)
+    router.ServeHTTP(w,r)
+    if negotiatedType != "text/html" {
+        t.Fatalf("httprouter.Handle set Content-Type to '%s', expected 'text/html'. httprouter context not working.\n", negotiatedType)
+    }
+    if foo != "bar" {
+        t.Fatalf("httprouter.Handle set foo to '%s', expected 'bar'. httprouter.Params handling not working.\n", foo)
+    }
 }
