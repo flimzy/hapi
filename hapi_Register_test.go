@@ -1,25 +1,30 @@
 package hapi
 
 import (
+    "net/http"
     "testing"
+
+    "github.com/gorilla/context"
+
 //     "net/http"
 )
 
 func (h *HypermediaAPI) DoRegisterTest(name, requestedType, expectedType, expectedID string, t *testing.T) {
-    negType,negHandler := h.TypeAndHandler("GET","/",requestedType)
+    negType,typeHandler := h.TypeAndHandler("GET","/",requestedType)
     if negType != expectedType {
         t.Fatalf("%s: TypeAndHandler returned '%s', expected '%s'\n", name, negType, expectedType)
     }
-    context := &Context{}
-    context.Stash = make(map[string]interface{})
-    if negHandler != nil {
-        negHandler( context )
+    w := new(mockResponseWriter)
+    r,_ := http.NewRequest("GET","/",nil)
+
+    if typeHandler != nil {
+        typeHandler( w, r )
     }
-    var id string
-    if context.Stash["id"] != nil {
-        id = context.Stash["id"].(string)
-    }
-    if id != expectedID {
+    if id,ok := context.GetOk(r,"id"); ! ok {
+        if ( len(expectedID) > 0 ) {
+            t.Fatalf("%s: Error reading id after request\n", name)
+        }
+    } else if id != expectedID {
         t.Fatalf("%s: Handler identified itself as '%s', expected '%s'\n", name, id, expectedID)
     }
 }
