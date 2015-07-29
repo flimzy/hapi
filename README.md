@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/flimzy/hapi.svg?branch=master)](https://travis-ci.org/flimzy/hapi)
+
 # What is HAPI?
 
 HAPI, short for **Hypermedia API**, is a router and minimalistic framework for creating Hypermedia APIs (aka REST) for the Go language.
