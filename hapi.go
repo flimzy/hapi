@@ -99,26 +99,7 @@ func (h *HypermediaAPI) Register(method, path, ctype string, handle Handler) {
         }
     } else {
         wrapper := func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-            accept := r.Header.Get("Accept")
-            if len(accept) == 0 {
-                accept = "*/*"
-            }
-            negotiatedType, typeHandler := h.TypeAndHandler(method,path,accept)
-            if len(negotiatedType) == 0 {
-                // Fall back to unsupported type
-                typeHandler = h.UnsupportedMediaType
-            }
-//            w.Header.Set("Content-Type", negotiatedType)
-            context := &Context{
-                w,
-                r,
-                p,
-                negotiatedType,
-                make(map[string]interface{}),
-            }
-            typeHandler( context )
-            fmt.Fprintf(w, "%v", context)
-            return
+            h.dispatch(method,path,w,r,p)
         }
         h.Router.Handle(method, path, wrapper)
         h.typeHandlers[key] = make(map[string]Handler)
@@ -130,6 +111,28 @@ func (h *HypermediaAPI) Register(method, path, ctype string, handle Handler) {
         }
         h.typeHandlers[key][t] = handle
     }
+}
+
+func (h *HypermediaAPI) dispatch(method, path string,w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+    accept := r.Header.Get("Accept")
+    if len(accept) == 0 {
+        accept = "*/*"
+    }
+    negotiatedType, typeHandler := h.TypeAndHandler(method,path,accept)
+    if len(negotiatedType) == 0 {
+        // Fall back to unsupported type
+        typeHandler = h.UnsupportedMediaType
+    }
+    context := &Context{
+        w,
+        r,
+        p,
+        negotiatedType,
+        make(map[string]interface{}),
+    }
+    typeHandler( context )
+    fmt.Fprintf(w, "%v", context)
+    return
 }
 
 func (h *HypermediaAPI) TypeAndHandler(method, path, acceptHeader string) (negotiatedType string, typeHandler Handler) {
