@@ -3,9 +3,6 @@ package hapi
 import (
     "testing"
     "net/http"
-
-    "github.com/julienschmidt/httprouter"
-
 )
 
 func (h *HypermediaAPI) DoTypeAndHandlerTests(name, accept, expectedType, expectedID string, actualId *string, t *testing.T) {
@@ -17,7 +14,7 @@ func (h *HypermediaAPI) DoTypeAndHandlerTests(name, accept, expectedType, expect
     if negHandler != nil {
         w := new(mockResponseWriter)
         r,_ := http.NewRequest("GET","/bar",nil)
-        p := httprouter.Params{}
+        p := Params{}
         negHandler(w,r,p)
     }
     if *actualId != expectedID {
@@ -29,7 +26,7 @@ func (h *HypermediaAPI) DoTypeAndHandlerTests(name, accept, expectedType, expect
 func TestTypeNegotiator1(t *testing.T) {
     router := New()
     var id string
-    router.Register("GET", "/", "text/html", func(w http.ResponseWriter, r *http.Request, p httprouter.Params) { id = "1" })
+    router.Register("GET", "/", "text/html", func(w http.ResponseWriter, r *http.Request, p Params) { id = "1" })
     //                          Test Name       Accept:         ExpectedType    ExpectedID  ActualID
     router.DoTypeAndHandlerTests("text/html",   "text/html",    "text/html",    "1",        &id,    t)
     router.DoTypeAndHandlerTests("text/plain",  "text/plain",   "",             "",         &id,    t)
@@ -43,8 +40,8 @@ func TestTypeNegotiator1(t *testing.T) {
 func TestTypeNegotiator2(t *testing.T) {
     router := New()
     var id string
-    router.Register("GET", "/", "text/html", func(w http.ResponseWriter, r *http.Request, p httprouter.Params) { id = "1" })
-    router.Register("GET", "/", "text/plain", func(w http.ResponseWriter, r *http.Request, p httprouter.Params) { id = "2" })
+    router.Register("GET", "/", "text/html", func(w http.ResponseWriter, r *http.Request, p Params) { id = "1" })
+    router.Register("GET", "/", "text/plain", func(w http.ResponseWriter, r *http.Request, p Params) { id = "2" })
     //                          Test Name       Accept:         ExpectedType    ExpectedID  ActualID
     router.DoTypeAndHandlerTests("text/html",   "text/html",    "text/html",    "1",        &id,    t)
     router.DoTypeAndHandlerTests("text/plain",  "text/plain",   "text/plain",   "2",        &id,    t)

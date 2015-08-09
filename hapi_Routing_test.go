@@ -3,8 +3,6 @@ package hapi
 import (
     "testing"
     "net/http"
-
-    "github.com/julienschmidt/httprouter"
 )
 
 type mockResponseWriter struct{}
@@ -26,8 +24,8 @@ func (m *mockResponseWriter) WriteHeader(int) {}
 func TestRouting(t *testing.T) {
     router := New()
     handlerID := ""
-    router.Register("GET","/","text/html", func (w http.ResponseWriter, r *http.Request, p httprouter.Params) { handlerID = "1" })
-    router.UnsupportedMediaType = func (w http.ResponseWriter, r *http.Request, p httprouter.Params) { handlerID = "unsupported" }
+    router.Register("GET","/","text/html", func (w http.ResponseWriter, r *http.Request, p Params) { handlerID = "1" })
+    router.UnsupportedMediaType = func (w http.ResponseWriter, r *http.Request, p Params) { handlerID = "unsupported" }
     w := new(mockResponseWriter)
     req,_ := http.NewRequest("GET","/",nil)
     router.ServeHTTP(w,req)
