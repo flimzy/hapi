@@ -7,32 +7,32 @@ import (
     "github.com/julienschmidt/httprouter"   /* HTTP router */
 )
 
-func (h *HypermediaAPI) DoRegisterTest(name, requestedType, expectedType, expectedID string, t *testing.T) {
+func (h *HypermediaAPI) DoRegisterTest(name, requestedType, expectedType, expectedID string, actualId *string, t *testing.T) {
     negType,negHandler := h.TypeAndHandler("GET","/",requestedType)
     if negType != expectedType {
         t.Fatalf("%s: TypeAndHandler returned '%s', expected '%s'\n", name, negType, expectedType)
     }
-    context := &Context{}
-    context.Stash = make(map[string]interface{})
+    *actualId = ""  // Reset the identifier for each test
     if negHandler != nil {
-        negHandler( context )
+        w := new(mockResponseWriter)
+        r,_ := http.NewRequest("GET","/bar",nil)
+        p := httprouter.Params{}
+        negHandler(w,r,p)
     }
-    var id string
-    if context.Stash["id"] != nil {
-        id = context.Stash["id"].(string)
-    }
-    if id != expectedID {
-        t.Fatalf("%s: Handler identified itself as '%s', expected '%s'\n", name, id, expectedID)
+    if *actualId != expectedID {
+        t.Fatalf("%s: Handler identified itself as '%s', expected '%s'\n", name, *actualId, expectedID)
     }
 }
 
 func TestRegister1(t *testing.T) {
     router := New()
-    router.TestRegister("text/html","1")
-    router.DoRegisterTest("text/html 1","text/html","text/html","1",t)
-    router.DoRegisterTest("text/html 2","text/*","text/html","1",t)
-    router.DoRegisterTest("text/html 3","*/*","text/html","1",t)
-    router.DoRegisterTest("text/html 4","text/plain","","",t)
+    var id string
+    router.Register("GET", "/", "text/html", func(w http.ResponseWriter, r *http.Request, p httprouter.Params) { id = "1" })
+    //                          Test Name       Accept:         ExpectedType    ExpectedID  ActualID
+    router.DoRegisterTest("text/html 1",        "text/html",    "text/html",    "1",        &id,    t)
+    router.DoRegisterTest("text/html 2",        "text/*",       "text/html",    "1",        &id,    t)
+    router.DoRegisterTest("text/html 3",        "*/*",          "text/html",    "1",        &id,    t)
+    router.DoRegisterTest("text/html 4",        "text/plain",   "",             "",         &id,    t)
 }
 
 func TestHandle(t *testing.T) {

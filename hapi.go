@@ -20,44 +20,34 @@ import (
     "bitbucket.org/ww/goautoneg"            /* To parse Accept: headers */
 )
 
-type Handler func(*Context)
-
 type HypermediaAPI struct {
     Router                  *httprouter.Router
     registeredTypes         []string
-    typeHandlers            map[string]map[string]Handler
+    typeHandlers            map[string]map[string]httprouter.Handle
     // Configurable hapi.Handler which is called when the requested media
     // type (via Accept: header) cannot be served by a registered handler.
     // If it is not set, http.Error with http.StatusUnsupportedMediaType is used.
-    UnsupportedMediaType    Handler
-}
-
-type Context struct {
-    Writer              http.ResponseWriter
-    Request             *http.Request
-    Params              httprouter.Params
-    NegotiatedType      string
-    Stash               map[string]interface{}
+    UnsupportedMediaType    httprouter.Handle
 }
 
 func New() *HypermediaAPI {
     return &HypermediaAPI{
         httprouter.New(),
         make([]string,0,1),
-        make(map[string]map[string]Handler),
+        make(map[string]map[string]httprouter.Handle),
         defaultUnsupportedMediaType,
     }
 }
 
-func defaultUnsupportedMediaType (c *Context) {
-    http.Error(c.Writer,"415 Unsupported Media Type", http.StatusUnsupportedMediaType)
+func defaultUnsupportedMediaType (w http.ResponseWriter, r * http.Request, p httprouter.Params) {
+    http.Error(w,"415 Unsupported Media Type", http.StatusUnsupportedMediaType)
 }
 
-func (h *HypermediaAPI) GETAll(path string, handle Handler) {
+func (h *HypermediaAPI) GETAll(path string, handle httprouter.Handle) {
     h.Register("GET",path,"*/*",handle)
 }
 
-func (h *HypermediaAPI) GET(path, ctype string, handle Handler) {
+func (h *HypermediaAPI) GET(path, ctype string, handle httprouter.Handle) {
     h.Register("GET",path, ctype, handle)
 }
 
@@ -67,15 +57,15 @@ func (h *HypermediaAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // Handle() is an adaptor which allows the usage of an httprouter.Handle as a request handle
 func (h *HypermediaAPI) Handle(method, path, ctype string, handle httprouter.Handle) {
-    h.Register(method, path, ctype, func(c *Context) {
-        handle(c.Writer,c.Request,c.Params)
+    h.Register(method, path, ctype, func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+        handle(w,r,p)
     })
 }
 
 // Handler() is an adapter which allows the usage of an http.Handler as a request handle
 func (h *HypermediaAPI) Handler(method, path, ctype string, handler http.Handler) {
-    h.Register(method, path, ctype, func(c *Context) {
-        handler.ServeHTTP(c.Writer, c.Request)
+    h.Register(method, path, ctype, func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+        handler.ServeHTTP(w,r)
     })
 }
 
@@ -88,7 +78,7 @@ func (h *HypermediaAPI) HandlerFunc(method, path, ctype string, handlerFunc http
 // Method and path ought to be self-explanatory.
 // The content type argument should be a space-separated list of valid content types. Wildcards
 // are not permitted.
-func (h *HypermediaAPI) Register(method, path, ctype string, handle Handler) {
+func (h *HypermediaAPI) Register(method, path, ctype string, handle httprouter.Handle) {
     key := method + " " + path
     ctypes := strings.Split(ctype," ")
     if typeHandlers, registered := h.typeHandlers[key]; registered {
@@ -102,7 +92,7 @@ func (h *HypermediaAPI) Register(method, path, ctype string, handle Handler) {
             h.dispatch(method,path,w,r,p)
         }
         h.Router.Handle(method, path, wrapper)
-        h.typeHandlers[key] = make(map[string]Handler)
+        h.typeHandlers[key] = make(map[string]httprouter.Handle)
     }
     h.registeredTypes = append(h.registeredTypes,ctypes...)
     for _,t := range ctypes {
@@ -123,19 +113,13 @@ func (h *HypermediaAPI) dispatch(method, path string,w http.ResponseWriter, r *h
         // Fall back to unsupported type
         typeHandler = h.UnsupportedMediaType
     }
-    context := &Context{
-        w,
-        r,
-        p,
-        negotiatedType,
-        make(map[string]interface{}),
-    }
-    typeHandler( context )
-    fmt.Fprintf(w, "%v", context)
+    // Add the negotiated type as a param so clients can access this, if they want it
+    p = append(p,httprouter.Param{"NegotiatedType",negotiatedType})
+    typeHandler(w,r,p)
     return
 }
 
-func (h *HypermediaAPI) TypeAndHandler(method, path, acceptHeader string) (negotiatedType string, typeHandler Handler) {
+func (h *HypermediaAPI) TypeAndHandler(method, path, acceptHeader string) (negotiatedType string, typeHandler httprouter.Handle) {
     negotiatedType = goautoneg.Negotiate(acceptHeader,h.registeredTypes)
     if len(negotiatedType) == 0 {
         // This means we can't serve the requested type
